@@ -42,7 +42,9 @@ func LoginPage() echo.HandlerFunc {
 func Login(db store.IStore) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		user := new(model.User)
-		c.Bind(user)
+		if err := c.Bind(user); err != nil {
+			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, "Cannot bind user"})
+		}
 
 		dbuser, err := db.GetUser()
 		if err != nil {
