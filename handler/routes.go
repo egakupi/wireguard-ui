@@ -62,7 +62,10 @@ func Login(db store.IStore) echo.HandlerFunc {
 			tokenUID := xid.New().String()
 			sess.Values["username"] = user.Username
 			sess.Values["session_token"] = tokenUID
-			sess.Save(c.Request(), c.Response())
+			err := sess.Save(c.Request(), c.Response())
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, "Cannot save to DB session token"})
+			}
 
 			// set session_token in cookie
 			cookie := new(http.Cookie)
@@ -82,7 +85,7 @@ func Login(db store.IStore) echo.HandlerFunc {
 func Logout() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		clearSession(c)
-		return c.Redirect(http.StatusTemporaryRedirect, util.BasePath + "/login")
+		return c.Redirect(http.StatusTemporaryRedirect, util.BasePath+"/login")
 	}
 }
 
@@ -138,30 +141,43 @@ func NewClient(db store.IStore) echo.HandlerFunc {
 	return func(c echo.Context) error {
 
 		var client model.Client
-		c.Bind(&client)
+		err := c.Bind(&client)
+		if err != nil {
+			log.Error("bind client: ", err)
+			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, err.Error()})
+		}
 
 		// read server information
 		server, err := db.GetServer()
 		if err != nil {
-			log.Error("Cannot fetch server from database: ", err)
+			log.Error("fetch server from database: ", err)
 			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, err.Error()})
 		}
 
 		// validate the input Allocation IPs
 		allocatedIPs, err := util.GetAllocatedIPs("")
+		if err != nil {
+			log.Error("get allocated IPs: ", err)
+			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, err.Error()})
+		}
 		check, err := util.ValidateIPAllocation(server.Interface.Addresses, allocatedIPs, client.AllocatedIPs)
+		if err != nil {
+			log.Error("validate IP Allocation: ", err)
+			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, err.Error()})
+		}
+
 		if !check {
 			return c.JSON(http.StatusBadRequest, jsonHTTPResponse{false, fmt.Sprintf("%s", err)})
 		}
 
 		// validate the input AllowedIPs
-		if util.ValidateAllowedIPs(client.AllowedIPs) == false {
+		if !util.ValidateAllowedIPs(client.AllowedIPs) {
 			log.Warnf("Invalid Allowed IPs input from user: %v", client.AllowedIPs)
 			return c.JSON(http.StatusBadRequest, jsonHTTPResponse{false, "Allowed IPs must be in CIDR format"})
 		}
 
 		// validate extra AllowedIPs
-		if util.ValidateExtraAllowedIPs(client.ExtraAllowedIPs) == false {
+		if !util.ValidateExtraAllowedIPs(client.ExtraAllowedIPs) {
 			log.Warnf("Invalid Extra AllowedIPs input from user: %v", client.ExtraAllowedIPs)
 			return c.JSON(http.StatusBadRequest, jsonHTTPResponse{false, "Extra AllowedIPs must be in CIDR format"})
 		}
@@ -449,7 +465,7 @@ func WireGuardServerInterfaces(db store.IStore) echo.HandlerFunc {
 		c.Bind(&serverInterface)
 
 		// validate the input addresses
-		if util.ValidateServerAddresses(serverInterface.Addresses) == false {
+		if !util.ValidateServerAddresses(serverInterface.Addresses) {
 			log.Warnf("Invalid server interface addresses input from user: %v", serverInterface.Addresses)
 			return c.JSON(http.StatusBadRequest, jsonHTTPResponse{false, "Interface IP address must be in CIDR format"})
 		}
@@ -603,7 +619,7 @@ func GlobalSettingSubmit(db store.IStore) echo.HandlerFunc {
 		c.Bind(&globalSettings)
 
 		// validate the input dns server list
-		if util.ValidateIPAddressList(globalSettings.DNSServers) == false {
+		if !util.ValidateIPAddressList(globalSettings.DNSServers) {
 			log.Warnf("Invalid DNS server list input from user: %v", globalSettings.DNSServers)
 			return c.JSON(http.StatusBadRequest, jsonHTTPResponse{false, "Invalid DNS server address"})
 		}
