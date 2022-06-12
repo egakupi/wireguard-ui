@@ -45,13 +45,19 @@ func (o *JsonDB) Init() error {
 	var userPath string = path.Join(serverPath, "users.json")
 	// create directories if they do not exist
 	if _, err := os.Stat(clientPath); os.IsNotExist(err) {
-		os.MkdirAll(clientPath, os.ModePerm)
+		if err := os.MkdirAll(clientPath, os.ModePerm); err != nil {
+			return fmt.Errorf("mkdir client path: %w", err)
+		}
 	}
 	if _, err := os.Stat(serverPath); os.IsNotExist(err) {
-		os.MkdirAll(serverPath, os.ModePerm)
+		if err := os.MkdirAll(serverPath, os.ModePerm); err != nil {
+			return fmt.Errorf("mkdir server path: %w", err)
+		}
 	}
 	if _, err := os.Stat(wakeOnLanHostsPath); os.IsNotExist(err) {
-		os.MkdirAll(wakeOnLanHostsPath, os.ModePerm)
+		if err := os.MkdirAll(wakeOnLanHostsPath, os.ModePerm); err != nil {
+			return fmt.Errorf("mkdir Wake On LAN path: %w", err)
+		}
 	}
 
 	// server's interface
@@ -62,7 +68,9 @@ func (o *JsonDB) Init() error {
 		serverInterface.PostUp = util.LookupEnvOrString(util.ServerPostUpScriptEnvVar, "")
 		serverInterface.PostDown = util.LookupEnvOrString(util.ServerPostDownScriptEnvVar, "")
 		serverInterface.UpdatedAt = time.Now().UTC()
-		o.conn.Write("server", "interfaces", serverInterface)
+		if err := o.conn.Write("server", "interfaces", serverInterface); err != nil {
+			return fmt.Errorf("server interfaces write: %w", err)
+		}
 	}
 
 	// server's key pair
@@ -76,7 +84,9 @@ func (o *JsonDB) Init() error {
 		serverKeyPair.PrivateKey = key.String()
 		serverKeyPair.PublicKey = key.PublicKey().String()
 		serverKeyPair.UpdatedAt = time.Now().UTC()
-		o.conn.Write("server", "keypair", serverKeyPair)
+		if err := o.conn.Write("server", "keypair", serverKeyPair); err != nil {
+			return fmt.Errorf("server keypair write: %w", err)
+		}
 	}
 
 	// global settings
@@ -95,7 +105,9 @@ func (o *JsonDB) Init() error {
 		globalSetting.ForwardMark = util.LookupEnvOrString(util.ForwardMarkEnvVar, util.DefaultForwardMark)
 		globalSetting.ConfigFilePath = util.LookupEnvOrString(util.ConfigFilePathEnvVar, util.DefaultConfigFilePath)
 		globalSetting.UpdatedAt = time.Now().UTC()
-		o.conn.Write("server", "global_settings", globalSetting)
+		if err := o.conn.Write("server", "global_settings", globalSetting); err != nil {
+			return fmt.Errorf("server global setting write: %w", err)
+		}
 	}
 
 	// user info
@@ -103,7 +115,9 @@ func (o *JsonDB) Init() error {
 		user := new(model.User)
 		user.Username = util.LookupEnvOrString(util.UsernameEnvVar, util.DefaultUsername)
 		user.Password = util.LookupEnvOrString(util.PasswordEnvVar, util.DefaultPassword)
-		o.conn.Write("server", "users", user)
+		if err := o.conn.Write("server", "users", user); err != nil {
+			return fmt.Errorf("server users write: %w", err)
+		}
 	}
 
 	return nil
